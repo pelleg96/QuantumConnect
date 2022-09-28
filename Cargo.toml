@@ -1,0 +1,12 @@
+[package]
+name = "kem_test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hex = "0.4.3"
+rand = "0.8.5"
+libaes = "0.6.4"
+pqc_kyber = {version = "0.2.1", features = ["kyber1024", "reference"]}
