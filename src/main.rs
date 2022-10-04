@@ -1,13 +1,26 @@
+extern crate core;
+
 use std::io::{stdin, stdout, Write};
 use libaes::Cipher;
 use pqc_kyber::{keypair, Ake, PublicKey, AkeSendInit, AkeSendResponse};
+
+/*
+ * Main file for QuantumConnect project.
+ *
+ * Written by Alexander M. Pellegrino
+ * Created September 22, 2022
+ *
+ * Last Update: October 4, 2022
+ */
+
+// EARLY PROTOTYPE - NO NETWORK CAPABILITIES
 
 fn main() {
 
     // Initialize Random Number Generator for Seed
     let mut rng = rand::thread_rng();
 
-    // Create "Alice" and "Bob" as Sample Users
+    // Create "Alice" and "Bob" as Sample Users - TO BE REPLACED WITH CLIENT INITIALIZATION
     let mut alice = Ake::new();
     let mut bob = Ake::new();
 
@@ -15,49 +28,52 @@ fn main() {
     let alices_keys = keypair(&mut rng);
     let bobs_keys = keypair(&mut rng);
 
-    // Hex encode the public keys for easy user sharing
-    let alices_shared_key = hex::encode(alices_keys.public);
-    let bobs_shared_key = hex::encode(bobs_keys.public);
+    // base2048 encode the public keys for easy user sharing
+    let alices_shared_key = base2048::encode(alices_keys.public.as_slice());
+    let bobs_shared_key = base2048::encode(bobs_keys.public.as_slice());
 
-    // Convert the hex-encoded keys back to regular ones to test user sharing
-    let alices_reconstructed_key = PublicKey::from(rebuild_key(hex::decode(&alices_shared_key)
+    // Convert the base2048-encoded keys back to regular ones to test user sharing
+    let alices_reconstructed_key = PublicKey::from(rebuild_key(base2048::decode(&alices_shared_key)
         .expect("Invalid key.")));
-    let bobs_reconstructed_key = PublicKey::from(rebuild_key(hex::decode(&bobs_shared_key)
+    let bobs_reconstructed_key = PublicKey::from(rebuild_key(base2048::decode(&bobs_shared_key)
         .expect("Invalid key.")));
 
-    // Alice attempts to initialize a key pair with Bob's rebuilt key from hex
-    // She then hex encodes the initialization request to send to Bob
-    let client_initialization = hex::encode(alice.client_init(&bobs_reconstructed_key, &mut rng)
-        .to_vec());
+    // Alice attempts to initialize a key pair with Bob's rebuilt key from base2048
+    // She then base2048 encodes the initialization request to send to Bob
+    let client_initialization = base2048::encode(
+        alice.client_init(&bobs_reconstructed_key, &mut rng).as_slice()
+    );
 
-    // Convert the hex-encoded initialization back to a regular one to test user sharing
-    let reconstructed_initialization = AkeSendInit::from(rebuild_client_init(
-        hex::decode(&client_initialization).expect("Invalid client initialization.")));
+    // Convert the base2048-encoded initialization back to a regular one to test user sharing
+    let reconstructed_initialization = AkeSendInit::from(rebuild_init_response(
+        base2048::decode(&client_initialization).expect("Invalid client initialization.")));
 
     // Bob attempts to access the key pair using Alice's public key and his secret key
-    // He then hex encodes the result to send back to Alice
-    let server_response = hex::encode(
+    // He then base2048 encodes the result to send back to Alice
+    let server_response = base2048::encode(
                             bob.server_receive(reconstructed_initialization,
                                              &alices_reconstructed_key,
                                              &bobs_keys.secret,
                                              &mut rng)
                                              .expect("Authentication error.")
-                                             .to_vec()
+                                             .as_slice()
     );
 
-    let reconstructed_response = AkeSendResponse::from(rebuild_client_init(
-        hex::decode(&server_response).expect("Invalid server response.")));
+    // Convert the base2048-encoded response back to a regular one to test user sharing
+    let reconstructed_response = AkeSendResponse::from(rebuild_init_response(
+        base2048::decode(&server_response).expect("Invalid server response.")));
 
     // Alice verifies Bob's request with her secret key
-    alice.client_confirm(reconstructed_response, &alices_keys.secret).expect("Authentication error.");
+    alice.client_confirm(reconstructed_response, &alices_keys.secret)
+        .expect("Authentication error.");
 
     // Display the public keys used in this authentication for debugging purposes
     println!("Alice's Public Key: {}", &alices_shared_key);
     println!("Bob's Public Key: {}", &bobs_shared_key);
 
     // Display the shared key generated on both ends - should match
-    println!("Alice's Shared Key: {}", hex::encode(alice.shared_secret));
-    println!("Bob's Shared Key: {}", hex::encode(bob.shared_secret));
+    println!("Alice's Shared Key: {}", base2048::encode(alice.shared_secret.as_slice()));
+    println!("Bob's Shared Key: {}", base2048::encode(bob.shared_secret.as_slice()));
 
     //###########################\\
     // Simulating A Conversation \\
@@ -75,12 +91,12 @@ fn main() {
         message.clear();
 
         if bobs_turn {
-            println!("Bob's Message:");
+            println!("Bob's Message to Send:");
             stdout().flush().unwrap();
         }
 
         else {
-            println!("Alice's Message:");
+            println!("Alice's Message to Send:");
             stdout().flush().unwrap();
         }
 
@@ -99,19 +115,21 @@ fn main() {
 
             // Alice decrypts the message with Bob's reconstructed public key and the shared key
             let decrypted = alices_signer.cbc_decrypt(&bobs_reconstructed_key, &encrypted);
-            println!("Alice's Decrypted Message: {}", std::str::from_utf8(&decrypted).unwrap());
+            println!("Alice's Decrypted Message:\n{}", std::str::from_utf8(&decrypted).unwrap());
             stdout().flush().unwrap();
             bobs_turn = false;
         }
 
         else {
             // Alice encrypts the message with her public key and the shared key
-            let encrypted = alices_signer.cbc_encrypt(&alices_reconstructed_key, message.as_bytes());
+            let encrypted = alices_signer.cbc_encrypt(
+                &alices_reconstructed_key, message.as_bytes()
+            );
             println!("Alice's Encrypted Message: {:?}", &encrypted);
 
             // Bob decrypts the message with Alice's reconstructed public key and the shared key
             let decrypted = bobs_signer.cbc_decrypt(&alices_reconstructed_key, &encrypted);
-            println!("Bob's Decrypted Message: {}", std::str::from_utf8(&decrypted).unwrap());
+            println!("Bob's Decrypted Message:\n{}", std::str::from_utf8(&decrypted).unwrap());
             stdout().flush().unwrap();
             bobs_turn = true;
         };
@@ -121,8 +139,8 @@ fn main() {
 }
 
 /*
- * Rebuilds a public key from a hex string
- * A hex-encoded public key MUST contain 1568 bytes
+ * Rebuilds a public key byte array from a parsed Vector
+ * A proper public key MUST contain 1568 bytes
  */
 fn rebuild_key<T>(v: Vec<T>) -> [T; 1568] where T: Copy {
     let slice = v.as_slice();
@@ -134,10 +152,10 @@ fn rebuild_key<T>(v: Vec<T>) -> [T; 1568] where T: Copy {
 }
 
 /*
- * Rebuilds a client initialization request from a hex string
- * A hex-encoded client initialization MUST contain 3136 bytes
+ * Rebuilds a client initialization request or server response byte array from a parsed Vector
+ * A proper client initialization MUST contain 3136 bytes
  */
-fn rebuild_client_init<T>(v: Vec<T>) -> [T; 3136] where T: Copy {
+fn rebuild_init_response<T>(v: Vec<T>) -> [T; 3136] where T: Copy {
     let slice = v.as_slice();
     let array: [T; 3136] = match slice.try_into() {
         Ok(n) => n,

@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "base2048"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71f4fe417e8cc3bb9b437dfa9290ce92bd2730ba5374719bdfd9147fbc8f17cd"
+
+[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -26,16 +32,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
 name = "kem_test"
 version = "0.1.0"
 dependencies = [
- "hex",
+ "base2048",
  "libaes",
  "pqc_kyber",
  "rand",
@@ -61,9 +61,9 @@ checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
 
 [[package]]
 name = "pqc_kyber"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5910bec0b6c38459bf5a562c1b3b35e52741a12f0cdf7be43ccbf7fb7eb6dfb8"
+checksum = "da7355bd909f4309ce6af620a0fc97d5d09d4b38480cc07e06e00b63da9d0d65"
 dependencies = [
  "cc",
  "rand_core",
